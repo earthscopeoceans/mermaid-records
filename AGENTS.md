@@ -257,6 +257,11 @@ The canonical package version lives only in:
 
 Do not duplicate version numbers.
 
+For every user-visible behavior or public-interface change intended for a
+release, bump the canonical package version before handoff. Do not bump the
+version for tests, internal refactors, or documentation-only corrections that
+do not change the released behavior.
+
 The package root intentionally exports metadata only.
 
 The repository uses the MIT license.

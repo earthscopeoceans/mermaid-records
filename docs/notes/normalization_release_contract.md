@@ -429,8 +429,34 @@ Shared MER provenance fields:
 - `data_payload_nbytes`
 - `expected_payload_nbytes`
 - `payload_length_matches_expected`
+- optional `stanford_psd_processing` (file-level `STANFORD_PROCESS` values
+  copied onto every event only when the source declares Stanford software and
+  exactly one such parameter line)
 - `raw_info_line`
 - `raw_format_line`
+
+### MER event context: ordinary acoustic versus Stanford PSD
+
+Ordinary acoustic MER events are self-describing at the event level. Their
+source `<INFO>` and `<FORMAT>` headers are repeated with every `<DATA>`
+payload, so the normalized event row preserves its own trigger-related fields,
+sample format, sampling rate, and declared payload length. Those header values
+may be identical across a file, but each event carries its own source-declared
+copy and the normalizer does not assume that they are invariant.
+
+Stanford PSD event blocks are structurally different: they have `<INFO>` and
+`<DATA>` but no per-event `<FORMAT>`. Their common processing configuration is
+declared by a file-level `<STANFORD_PROCESS ... />` parameter line. When the
+file declares Stanford software and exactly one such parameter line, its
+literal values are copied into optional `stanford_psd_processing` on each PSD
+event. This lets a consumer understand a PSD event and its `ROUNDS` value
+without joining it back to a separate parameter-family row.
+
+This is provenance-preserving context attachment, not waveform or mission
+interpretation. If the relevant file-level parameter is absent or repeated,
+the normalizer does not select one or infer an association; the event remains
+without `stanford_psd_processing`, while all parameter lines are preserved in
+`mer_parameter_records`.
 
 ## Persisted Manifest And State Schemas
 

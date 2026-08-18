@@ -12,6 +12,9 @@ All notable changes from this point forward should be recorded here.
 
 ### Added
 
+- Added the unambiguous file-level `STANFORD_PROCESS` parameter set to each
+  Stanford PSD event record, linking its source `ROUNDS` value to the
+  applicable processing parameters without waveform interpretation.
 - Added top-level `-v` as the short form of `--version`.
 - Added a root `normalization_manifest.json` with per-file SHA-256 checksums
   and a deterministic content-addressed normalized-corpus snapshot identifier.
@@ -23,6 +26,7 @@ All notable changes from this point forward should be recorded here.
 
 ### Release preparation
 
+- Advanced the package version to `2.1.0-rc3`.
 - Advanced the package version to `2.1.0-rc1`.
 
 ### Fixed

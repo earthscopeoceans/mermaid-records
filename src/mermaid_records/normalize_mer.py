@@ -228,6 +228,8 @@ def write_mer_jsonl_families(
                 if not blocks:
                     zero_event_files += 1
 
+                stanford_psd_processing = _stanford_psd_processing(metadata)
+
                 file_unknown_info_keys: set[str] = set()
                 file_unknown_format_keys: set[str] = set()
 
@@ -283,6 +285,7 @@ def write_mer_jsonl_families(
                             raw_info_line=block.raw_info_line,
                             raw_format_line=block.raw_format_line,
                             data_payload=block.data_payload,
+                            stanford_psd_processing=stanford_psd_processing,
                         )
                     )
                     record = with_record_metadata(record, path_instrument_serial)
@@ -447,6 +450,7 @@ def _build_event_record(
     raw_info_line: str | None,
     raw_format_line: str | None,
     data_payload: bytes | None,
+    stanford_psd_processing: dict[str, object] | None,
 ) -> tuple[dict[str, object], set[str], set[str]]:
     info_attrs = _parse_attributes(raw_info_line)
     format_attrs = _parse_attributes(raw_format_line)
@@ -494,7 +498,31 @@ def _build_event_record(
         "raw_info_line": raw_info_line,
         "raw_format_line": raw_format_line,
     }
+    if stanford_psd_processing is not None:
+        record["stanford_psd_processing"] = stanford_psd_processing
     return record, unknown_info_keys, unknown_format_keys
+
+
+def _stanford_psd_processing(metadata) -> dict[str, object] | None:
+    """Return the sole file-level Stanford PSD parameter set, if unambiguous."""
+
+    if metadata.software is None or "STANFORD" not in metadata.software.upper():
+        return None
+    process_lines = [
+        line for line in metadata.raw_parameter_lines
+        if line.strip().startswith("<STANFORD_PROCESS ")
+    ]
+    if len(process_lines) != 1:
+        return None
+    return {
+        "duration_h": metadata.stanford_process_duration_h,
+        "process_period_h": metadata.stanford_process_period_h,
+        "window_len": metadata.stanford_process_window_len,
+        "window_type": metadata.stanford_process_window_type,
+        "overlap_percent": metadata.stanford_process_overlap_percent,
+        "db_offset": metadata.stanford_process_db_offset,
+        "raw_parameter_line": process_lines[0],
+    }
 
 
 def _expected_payload_nbytes(format_attrs: dict[str, str]) -> int | None:

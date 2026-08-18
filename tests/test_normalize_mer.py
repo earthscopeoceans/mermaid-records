@@ -742,6 +742,12 @@ def test_write_mer_jsonl_families_exercises_real_psd_fixture_subset(
     assert {record["data_payload_nbytes"] for record in event_records} == {512}
     assert {record["expected_payload_nbytes"] for record in event_records} == {None}
     assert {record["payload_length_matches_expected"] for record in event_records} == {None}
+    assert {record["stanford_psd_processing"]["process_period_h"] for record in event_records} == {3}
+    assert {record["stanford_psd_processing"]["window_len"] for record in event_records} == {1024}
+    assert {record["stanford_psd_processing"]["overlap_percent"] for record in event_records} == {10}
+    assert {record["stanford_psd_processing"]["raw_parameter_line"] for record in event_records} == {
+        "\t<STANFORD_PROCESS  DURATION_h=168  PROCESS_PERIOD_h=3  WINDOW_LEN=1024  WINDOW_TYPE=Hanning  OVERLAP_PERCENT=10  dB_OFFSET=0 />"
+    }
 
     stanford_process_records = [
         record
