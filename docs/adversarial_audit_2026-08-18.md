@@ -23,6 +23,9 @@ Priority uses the following meaning:
 The checkboxes are intentionally unchecked. They are a review and remediation
 tracker, not evidence that a finding has been accepted or fixed.
 
+The three P1 findings were remediated after this read-only audit. Concrete
+before/after examples are in [P1 preservation hardening examples](p1_hardening_examples.md).
+
 ## Priority checklist
 
 - [ ] **P1 — Preserve arbitrary MER DATA bytes.** Literal `</DATA>` and
@@ -378,4 +381,3 @@ decoder-environment invalidation.
   manifest's own bytes.
 - No specific Python 3.12/3.13/3.14 behavioral failure was found beyond the
   concrete datetime overflow and permissive JSON-number concerns above.
-

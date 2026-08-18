@@ -1,5 +1,8 @@
 # Limitations
 
+For concrete raw-source edge cases and their normalization or quarantine
+results, see [P1 preservation hardening examples](p1_hardening_examples.md).
+
 ## Manifest and state artifacts depend on mode
 
 `Stateful` and `stateless` runs do not persist the same side artifacts.
