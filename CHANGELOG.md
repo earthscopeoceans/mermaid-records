@@ -12,6 +12,7 @@ All notable changes from this point forward should be recorded here.
 
 ### Added
 
+- Added top-level `-v` as the short form of `--version`.
 - Added a root `normalization_manifest.json` with per-file SHA-256 checksums
   and a deterministic content-addressed normalized-corpus snapshot identifier.
 - Added `normalize --instrument-serial <full-serial>` to scope stateful

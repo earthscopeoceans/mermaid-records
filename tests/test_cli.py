@@ -29,15 +29,25 @@ def test_cli_version_option_reports_package_version(capsys) -> None:
     assert captured.err == ""
 
 
-def test_cli_reserves_top_level_short_v_for_future_verbose() -> None:
+def test_cli_short_version_option_reports_package_version(capsys) -> None:
+    with pytest.raises(SystemExit) as excinfo:
+        main(["-v"])
+
+    captured = capsys.readouterr()
+
+    assert excinfo.value.code == 0
+    assert captured.out == f"mermaid-records {__version__}\n"
+    assert captured.err == ""
+
+
+def test_cli_help_exposes_top_level_version_option() -> None:
     option_strings = {
         option_string
         for action in build_parser()._actions
         for option_string in action.option_strings
     }
 
-    assert "--version" in option_strings
-    assert "-v" not in option_strings
+    assert {"-v", "--version"} <= option_strings
 
 
 def test_normalize_cli_writes_log_and_mer_jsonl_outputs(tmp_path: Path, capsys) -> None:
