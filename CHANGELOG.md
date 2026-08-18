@@ -27,6 +27,12 @@ All notable changes from this point forward should be recorded here.
 
 ### Fixed
 
+- Preserve delimiter-looking bytes inside length-framed MER DATA payloads;
+  quarantine ambiguous format-less payloads instead of truncating them.
+- Preserve repeated complete MER metadata sections and record a stateful-run
+  quarantine diagnostic for user review.
+- Prevent incomplete Iridium sessions from absorbing unrelated tagged LOG
+  lines; those lines now return to their ordinary LOG-family routing.
 - Prevent duplicate or conflicting LOG-derived rows by treating a BIN-decoded
   LOG as authoritative over an existing same-stem LOG. Shadowed native LOGs
   are excluded from normalization and source-state planning without being

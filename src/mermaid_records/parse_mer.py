@@ -16,7 +16,6 @@ _SECTION_RE = re.compile(
     rb"<(?P<name>ENVIRONMENT|PARAMETERS)>(?P<body>.*?)</(?P=name)>",
     re.DOTALL,
 )
-_EVENT_RE = re.compile(rb"<EVENT>(?P<body>.*?)</EVENT>", re.DOTALL)
 _INFO_RE = re.compile(rb"<INFO (?P<body>[^>]+)/>")
 _FORMAT_RE = re.compile(rb"<FORMAT (?P<body>[^>]+)/>")
 _ATTR_RE = re.compile(r'([A-Za-z_]+)=([^\s>]+)')
@@ -74,8 +73,7 @@ def iter_mer_event_blocks(path: Path, data: bytes | None = None) -> Iterator[Mer
     """Yield conservative MER event blocks without interpreting waveform payloads."""
 
     raw_data = data if data is not None else path.read_bytes()
-    for event_match in _EVENT_RE.finditer(raw_data):
-        event_body = event_match.group("body")
+    for event_body in _iter_event_bodies(raw_data):
         info_line = _extract_tag_line(event_body, _INFO_RE)
         format_line = _extract_tag_line(event_body, _FORMAT_RE)
         payload = _extract_payload(event_body)
@@ -113,10 +111,30 @@ def iter_mer_event_blocks_recoverable(
     """Yield conservative MER event blocks while reporting malformed structure."""
 
     raw_data = data if data is not None else path.read_bytes()
-    event_matches = list(_EVENT_RE.finditer(raw_data))
-    for block_index, event_match in enumerate(event_matches):
-        event_body = event_match.group("body")
-        raw_block = event_match.group(0).decode("ascii", "ignore")
+    event_starts = [
+        match.start() for match in re.finditer(re.escape(b"<EVENT>"), raw_data)
+    ]
+    event_bodies: list[bytes] = []
+    for block_index, event_start in enumerate(event_starts):
+        next_start = (
+            event_starts[block_index + 1]
+            if block_index + 1 < len(event_starts)
+            else len(raw_data)
+        )
+        fragment = raw_data[event_start:next_start]
+        try:
+            event_bodies.extend(_iter_event_bodies(fragment))
+        except ValueError as exc:
+            _report_malformed_block(
+                on_malformed_block,
+                block_index=block_index,
+                block_kind="event_data",
+                raw_block=fragment.decode("ascii", "backslashreplace"),
+                error=str(exc),
+            )
+
+    for block_index, event_body in enumerate(event_bodies):
+        raw_block = event_body.decode("ascii", "backslashreplace")
         info_line = _extract_tag_line(event_body, _INFO_RE)
         format_line = _extract_tag_line(event_body, _FORMAT_RE)
         try:
@@ -205,25 +223,15 @@ def iter_mer_event_blocks_recoverable(
             source_file=path,
         )
 
-    if raw_data.count(b"<EVENT>") > len(event_matches):
-        trailing_fragment = raw_data.rsplit(b"<EVENT>", maxsplit=1)[-1]
-        _report_malformed_block(
-            on_malformed_block,
-            block_index=len(event_matches),
-            block_kind="unknown",
-            raw_block=("<EVENT>" + trailing_fragment.decode("ascii", "ignore")),
-            error="unclosed EVENT block",
-        )
-
-
 def _parse_metadata(path: Path, data: bytes) -> MerFileMetadata:
     """Parse file-level metadata from ENVIRONMENT and PARAMETERS sections."""
 
-    environment_bytes = _extract_section(data, b"ENVIRONMENT")
-    parameter_bytes = _extract_section(data, b"PARAMETERS")
-
-    environment_lines = _split_tag_lines(environment_bytes)
-    parameter_lines = _split_tag_lines(parameter_bytes)
+    environment_lines = _split_tag_lines(
+        b"\n".join(_extract_sections(data, b"ENVIRONMENT"))
+    )
+    parameter_lines = _split_tag_lines(
+        b"\n".join(_extract_sections(data, b"PARAMETERS"))
+    )
 
     metadata = MerFileMetadata(
         board=None,
@@ -254,11 +262,25 @@ def _parse_metadata_recoverable(
 ) -> MerFileMetadata:
     """Parse file-level metadata while skipping malformed section lines."""
 
-    environment_bytes = _extract_section(data, b"ENVIRONMENT")
-    parameter_bytes = _extract_section(data, b"PARAMETERS")
+    environment_sections = _extract_sections(data, b"ENVIRONMENT")
+    parameter_sections = _extract_sections(data, b"PARAMETERS")
+    environment_lines = _split_tag_lines(b"\n".join(environment_sections))
+    parameter_lines = _split_tag_lines(b"\n".join(parameter_sections))
 
-    environment_lines = _split_tag_lines(environment_bytes)
-    parameter_lines = _split_tag_lines(parameter_bytes)
+    for section_name, sections in (
+        ("ENVIRONMENT", environment_sections),
+        ("PARAMETERS", parameter_sections),
+    ):
+        for section_index, section in enumerate(sections[1:], start=1):
+            _report_malformed_block(
+                on_malformed_block,
+                block_index=section_index,
+                block_kind="repeated_metadata_section",
+                raw_block=section.decode("ascii", "backslashreplace"),
+                error=(
+                    f"repeated complete {section_name} section preserved in normalized records"
+                ),
+            )
 
     metadata = MerFileMetadata(
         board=None,
@@ -395,13 +417,14 @@ def _apply_parameter_metadata_line(metadata: MerFileMetadata, stripped_line: str
         metadata.upload_max = attrs.get("UPLOAD_MAX")
 
 
-def _extract_section(data: bytes, section_name: bytes) -> bytes:
-    """Extract a named top-level section body."""
+def _extract_sections(data: bytes, section_name: bytes) -> list[bytes]:
+    """Extract all complete named top-level section bodies in source order."""
 
-    for match in _SECTION_RE.finditer(data):
-        if match.group("name") == section_name:
-            return match.group("body")
-    return b""
+    return [
+        match.group("body")
+        for match in _SECTION_RE.finditer(data)
+        if match.group("name") == section_name
+    ]
 
 
 def _split_tag_lines(section: bytes) -> list[str]:
@@ -430,7 +453,7 @@ def _extract_payload(event_body: bytes) -> bytes | None:
     if event_body[payload_start : payload_start + len(_DATA_LEADING_FRAME)] == _DATA_LEADING_FRAME:
         payload_start += len(_DATA_LEADING_FRAME)
 
-    end = event_body.find(_DATA_CLOSE_TAG, payload_start)
+    end = event_body.rfind(_DATA_CLOSE_TAG, payload_start)
     if end == -1:
         raise ValueError("incomplete DATA block: missing </DATA>")
 
@@ -441,6 +464,84 @@ def _extract_payload(event_body: bytes) -> bytes | None:
     ):
         payload_end -= len(_DATA_TRAILING_FRAME)
     return event_body[payload_start:payload_end]
+
+
+def _iter_event_bodies(data: bytes) -> Iterator[bytes]:
+    """Yield event bodies using DATA length framing when it is available.
+
+    A waveform is arbitrary bytes, so delimiter-looking bytes within a FORMAT
+    framed payload are data, not XML structure.  FORMAT-less events are only
+    accepted when their DATA close tag is unique within the event.
+    """
+
+    cursor = 0
+    while True:
+        event_start = data.find(b"<EVENT>", cursor)
+        if event_start == -1:
+            return
+        body_start = event_start + len(b"<EVENT>")
+        data_start = data.find(_DATA_OPEN_TAG, body_start)
+        if data_start == -1:
+            raise ValueError("EVENT block missing DATA tag")
+
+        prefix = data[body_start:data_start]
+        format_line = _extract_tag_line(prefix, _FORMAT_RE)
+        format_attrs = _parse_attributes(format_line)
+        expected_nbytes = _expected_payload_nbytes(format_attrs)
+        payload_start = data_start + len(_DATA_OPEN_TAG)
+        if data[payload_start : payload_start + len(_DATA_LEADING_FRAME)] == _DATA_LEADING_FRAME:
+            payload_start += len(_DATA_LEADING_FRAME)
+
+        if expected_nbytes is None:
+            close_tag_start, event_end = _find_event_data_close(data, payload_start)
+            if data.find(_DATA_CLOSE_TAG, payload_start, close_tag_start) != -1:
+                raise ValueError(
+                    "ambiguous FORMAT-less DATA block: multiple </DATA> delimiters"
+                )
+        else:
+            if expected_nbytes < 0:
+                raise ValueError("negative expected DATA byte count")
+            payload_end = payload_start + expected_nbytes
+            trailing = len(_DATA_TRAILING_FRAME) if data[
+                payload_end : payload_end + len(_DATA_TRAILING_FRAME)
+            ] == _DATA_TRAILING_FRAME else 0
+            close_tag_start = payload_end + trailing
+            if data[close_tag_start : close_tag_start + len(_DATA_CLOSE_TAG)] != _DATA_CLOSE_TAG:
+                # Keep malformed length-mismatch payloads intact; the record
+                # exposes the mismatch rather than silently truncating it.
+                close_tag_start, event_end = _find_event_data_close(data, payload_start)
+            else:
+                event_end = data.find(b"</EVENT>", close_tag_start + len(_DATA_CLOSE_TAG))
+                if event_end == -1:
+                    raise ValueError("incomplete EVENT block: missing </EVENT>")
+
+        yield data[body_start:event_end]
+        cursor = event_end + len(b"</EVENT>")
+
+
+def _find_event_data_close(data: bytes, payload_start: int) -> tuple[int, int]:
+    """Locate the DATA close tag whose only following content is EVENT framing."""
+
+    cursor = payload_start
+    while True:
+        close_tag_start = data.find(_DATA_CLOSE_TAG, cursor)
+        if close_tag_start == -1:
+            raise ValueError("incomplete DATA block: missing </DATA>")
+        event_end = data.find(b"</EVENT>", close_tag_start + len(_DATA_CLOSE_TAG))
+        if event_end == -1:
+            raise ValueError("incomplete EVENT block: missing </EVENT>")
+        between = data[close_tag_start + len(_DATA_CLOSE_TAG) : event_end]
+        if not between.strip(b" \t\r\n"):
+            return close_tag_start, event_end
+        cursor = close_tag_start + len(_DATA_CLOSE_TAG)
+
+
+def _expected_payload_nbytes(format_attrs: dict[str, str]) -> int | None:
+    length = format_attrs.get("LENGTH")
+    bytes_per_sample = format_attrs.get("BYTES_PER_SAMPLE")
+    if length is None or bytes_per_sample is None:
+        return None
+    return int(length) * int(bytes_per_sample)
 
 
 def _parse_attributes(line: str | None) -> dict[str, str]:

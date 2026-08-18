@@ -60,6 +60,54 @@ def test_parse_mer_file_extracts_only_payload_bytes_inside_data_framing(tmp_path
     assert len(blocks[0].data_payload) == 19328
 
 
+def test_parse_mer_file_preserves_delimiter_bytes_inside_length_framed_payload(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "0100_delimiters.MER"
+    payload = b"abc</DATA>def</EVENT>ghi"
+    path.write_bytes(
+        b"<EVENT><INFO DATE=2024-02-07T22:47:22 />"
+        + f"<FORMAT BYTES_PER_SAMPLE=1 LENGTH={len(payload)} />".encode()
+        + b"<DATA>"
+        + payload
+        + b"</DATA></EVENT>"
+    )
+
+    _metadata, blocks = parse_mer_file(path)
+
+    assert [block.data_payload for block in blocks] == [payload]
+
+
+def test_parse_mer_file_rejects_ambiguous_formatless_data_delimiters(tmp_path: Path) -> None:
+    path = tmp_path / "0100_ambiguous.MER"
+    path.write_bytes(
+        b"<EVENT><INFO DATE=2024-02-07T22:47:22 />"
+        b"<DATA>abc</DATA>def</DATA></EVENT>"
+    )
+
+    with pytest.raises(ValueError, match="ambiguous FORMAT-less"):
+        parse_mer_file(path)
+
+
+def test_parse_mer_file_preserves_repeated_complete_metadata_sections(tmp_path: Path) -> None:
+    path = tmp_path / "0100_repeated_metadata.MER"
+    path.write_bytes(
+        b"<ENVIRONMENT><BOARD first /></ENVIRONMENT>"
+        b"<ENVIRONMENT><BOARD second /></ENVIRONMENT>"
+        b"<PARAMETERS><MISC UPLOAD_MAX=100kB /></PARAMETERS>"
+        b"<PARAMETERS><MISC UPLOAD_MAX=200kB /></PARAMETERS>"
+    )
+
+    metadata, blocks = parse_mer_file(path)
+
+    assert blocks == []
+    assert metadata.raw_environment_lines == ["<BOARD first />", "<BOARD second />"]
+    assert metadata.raw_parameter_lines == [
+        "<MISC UPLOAD_MAX=100kB />",
+        "<MISC UPLOAD_MAX=200kB />",
+    ]
+
+
 def test_parse_mer_file_accepts_stanford_event_without_format(tmp_path: Path) -> None:
     path = tmp_path / "0002_stanford.MER"
     payload = b"\x01\x02\x03\x04"

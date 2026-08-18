@@ -625,11 +625,11 @@ An explicit session starts on:
 ^Iridium\.\.\.$
 ```
 
-Once an explicit session is open, tagged LOG lines are included until a line
-matching `disconnected after (?P<disconnect_duration_s>\d+)s` or
-`no connection after (?P<connection_duration_s>\d+)s` is consumed, a new
-`Iridium...` starts, a blank/non-tagged line flushes the session, or EOF is
-reached. Event-sequence fallback starts on any Iridium event predicate below
+Once an explicit session is open, only tagged lines matching an Iridium event
+predicate or the literal `$COMMAND...;` syntax are included. Any other tagged
+line first flushes the incomplete session and is routed independently (for
+example, a GPS line remains a GPS record). A blank/non-tagged line and EOF also
+flush the session; sessions never span source files. Event-sequence fallback starts on any Iridium event predicate below
 when no explicit session is open, and keeps consuming contiguous Iridium event
 lines until the first non-event line, disconnect, or terminal no-connection.
 

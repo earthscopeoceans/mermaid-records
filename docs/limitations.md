@@ -41,6 +41,8 @@ Important consequences:
 - downstream consumers should not expect exact reconstruction of the original event block from one stored verbatim field
 - Stanford PSD event blocks that omit `<FORMAT>` are still valid and normalize with `raw_format_line = null`
 - payload byte counts measure only the bytes inside `<DATA>...</DATA>` and exclude surrounding framing whitespace
+- a length-framed payload is bounded by its declared byte count, so delimiter-like bytes inside it are preserved; a format-less event with multiple DATA close delimiters is quarantined rather than normalized ambiguously
+- repeated complete `ENVIRONMENT` or `PARAMETERS` sections are preserved as ordinary metadata records and are also reported in the stateful run's malformed-MER quarantine log
 
 ## Allowed transformations
 

@@ -1083,6 +1083,29 @@ def test_write_log_jsonl_families_preserves_negative_epoch_iridium_session(
 
     assert gps_records[0]["log_epoch_time"] == "1681899427"
     assert gps_records[0]["record_time"] == "2023-04-19T10:17:07.000000Z"
+
+
+def test_incomplete_iridium_session_releases_unrelated_gps_line(tmp_path: Path) -> None:
+    log_path = tmp_path / "0100_interrupted_iridium.LOG"
+    log_path.write_text(
+        "\n".join(
+            [
+                "1700000000:[SURF  ,0025]Iridium...",
+                "1700000001:[SURF  ,0311]connected in 37s, signal quality 5",
+                "1700000002:[SURF  ,0394]S23deg29.970mn, W132deg30.444mn",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    output_dir = tmp_path / "jsonl"
+    write_log_jsonl_families([log_path], output_dir)
+
+    iridium_records = _read_jsonl(output_dir / "log_iridium_records.jsonl")
+    gps_records = _read_jsonl(output_dir / "log_gps_records.jsonl")
+    assert iridium_records[0]["source_line_numbers"] == [1, 2]
+    assert gps_records[0]["source_line_number"] == 3
     assert gps_records[0]["raw_values"] == {
         "latitude": "S23deg29.970mn",
         "longitude": "W132deg30.444mn",

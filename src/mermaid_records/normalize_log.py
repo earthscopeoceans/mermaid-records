@@ -714,10 +714,7 @@ def _iter_log_source_units(
                             )
                         )
                         continue
-                    if (
-                        current_episode.group_kind == "explicit_session"
-                        or _is_iridium_event_line(tagged_line)
-                    ):
+                    if _is_iridium_session_line(tagged_line):
                         current_episode.lines.append(
                             _grouped_line(
                                 line_number=line_number,
@@ -1354,6 +1351,14 @@ def _is_iridium_event_line(tagged_line: _ParsedTaggedLogLine) -> bool:
         _iridium_event_payload(tagged_line.message)["iridium_event_kind"]
         != "session_line"
     )
+
+
+def _is_iridium_session_line(tagged_line: _ParsedTaggedLogLine) -> bool:
+    """Return whether a tagged line can remain inside an explicit session."""
+
+    if _is_iridium_event_line(tagged_line):
+        return True
+    return _IRIDIUM_COMMAND_RE.search(tagged_line.message.strip()) is not None
 
 
 def _iridium_event_payload(message: str) -> dict[str, object]:

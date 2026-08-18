@@ -646,6 +646,35 @@ def test_write_mer_jsonl_families_accepts_metadata_only_stanford_mer(
     assert _read_jsonl(output_dir / "mer_event_records.jsonl") == []
 
 
+def test_write_mer_jsonl_families_quarantines_repeated_metadata_sections(
+    tmp_path: Path,
+) -> None:
+    mer_path = tmp_path / "0007_repeated_metadata.MER"
+    mer_path.write_bytes(
+        b"<ENVIRONMENT><BOARD first /></ENVIRONMENT>"
+        b"<ENVIRONMENT><BOARD second /></ENVIRONMENT>"
+        b"<PARAMETERS><MISC UPLOAD_MAX=100kB /></PARAMETERS>"
+    )
+    malformed_mer_blocks: list[dict[str, object]] = []
+
+    output_dir = tmp_path / "jsonl"
+    summary = write_mer_jsonl_families(
+        [mer_path],
+        output_dir,
+        run_id="run-repeated-metadata",
+        malformed_mer_blocks=malformed_mer_blocks,
+    )
+
+    environment_records = _read_jsonl(output_dir / "mer_environment_records.jsonl")
+    assert summary.environment_records == 2
+    assert [record["line"] for record in environment_records] == [
+        "<BOARD first />",
+        "<BOARD second />",
+    ]
+    assert malformed_mer_blocks[0]["block_kind"] == "repeated_metadata_section"
+    assert "second" in malformed_mer_blocks[0]["raw_block"]
+
+
 def test_write_mer_jsonl_families_exercises_real_psd_fixture_subset(
     tmp_path: Path,
 ) -> None:
