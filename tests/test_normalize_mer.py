@@ -144,6 +144,8 @@ def test_write_mer_jsonl_families_preserves_environment_parameter_and_event_rows
         "instrument_serial",
         "mermaid_records_version",
         "source_file",
+        "source_id",
+        "source_sha256",
         "source_container",
         "block_index",
         "event_index",

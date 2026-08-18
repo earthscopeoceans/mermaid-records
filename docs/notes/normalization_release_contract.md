@@ -55,7 +55,10 @@ deleting or modifying either raw file.
 Normalized LOG-family `source_file` values name the basename of that
 authoritative original input: the native `.LOG` for LOG-only input, or the
 `.BIN` for BIN-derived LOG content. Temporary decoded LOG filenames are never
-recorded as authoritative provenance.
+recorded as authoritative provenance. Every normalized LOG and MER row also
+carries `source_sha256` and content-addressed `source_id`
+(`sha256:<digest>`), so same-basename sources with different bytes remain
+distinguishable without placing local source paths in the public schema.
 
 ## Public CLI
 
@@ -250,6 +253,9 @@ Shared direct LOG record fields:
 
 - `source_file` is the basename-only authoritative raw input (`.LOG` or `.BIN`);
   same-stem BIN+LOG input records the `.BIN`
+- `source_id` is `sha256:<source_sha256>`, a stable content identifier for the
+  authoritative raw input
+- `source_sha256` is the SHA-256 checksum of the authoritative raw input
 - `source_line_number`
 - `record_time`
 - `log_epoch_time`
@@ -435,6 +441,12 @@ Shared MER provenance fields:
 - `raw_info_line`
 - `raw_format_line`
 
+`trig` is the literal `TRIG` attribute from the MER `INFO` header. The
+manufacturer’s original code uses the presence of `TRIG` to identify DET-style
+files, so this structural field is retained, including a present value of `0`.
+The normalizer does not infer an `event_kind` or classify DET versus REQ;
+downstream consumers can make that semantic decision from the preserved field.
+
 ### MER event context: ordinary acoustic versus Stanford PSD
 
 Ordinary acoustic MER events are self-describing at the event level. Their
@@ -503,7 +515,10 @@ without `stanford_psd_processing`, while all parameter lines are preserved in
   - each row contains `source_file`, `source_kind`, `size_bytes`, and `content_hash`
 - `decoder_state`
   - `null` when no BIN-dependent decoder state applies
-  - otherwise contains `decoder_python`, `decoder_python_version`, `decoder_script`, `decoder_script_hash`, `preflight_mode`, `database_bundle_hash`, `database_files`, and `decoder_git_commit`
+  - otherwise contains `decoder_python`, `decoder_python_version`, `decoder_script`, `decoder_script_hash`, `preflight_mode`, `database_bundle_hash`, `database_files`, `decoder_git_commit`, and `decoder_environment_fingerprint`
+  - supply that fingerprint with `--decoder-environment-fingerprint` (or
+    `MERMAID_RECORDS_DECODER_FINGERPRINT`) to permit incremental BIN no-op
+    decisions; without it, BIN-dependent stateful runs conservatively rewrite
 
 `manifests/runs/<run_id>/input_file_diffs.jsonl`
 

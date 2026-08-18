@@ -613,9 +613,10 @@ def _run_stateless(
             instrument_id=summary.instrument_id,
             instrument_serial=summary.instrument_serial,
             progress=progress,
-            run_id="stateless",
-            malformed_log_lines=malformed_log_lines,
-            skipped_log_files=skipped_log_files,
+            run_id=None,
+            malformed_log_lines=None,
+            skipped_log_files=None,
+            fail_on_malformed=True,
         )
         _execute_mer_family(
             instrument_output_dir=instrument_output_dir,
@@ -624,9 +625,10 @@ def _run_stateless(
             instrument_id=summary.instrument_id,
             instrument_serial=summary.instrument_serial,
             progress=progress,
-            run_id="stateless",
-            malformed_mer_blocks=malformed_mer_blocks,
-            skipped_mer_files=skipped_mer_files,
+            run_id=None,
+            malformed_mer_blocks=None,
+            skipped_mer_files=None,
+            fail_on_malformed=True,
         )
         _ensure_canonical_instrument_layout(
             instrument_output_dir=instrument_output_dir,
@@ -690,6 +692,7 @@ def _execute_log_family(
     run_id: str | None,
     malformed_log_lines: list[dict[str, object]] | None,
     skipped_log_files: list[dict[str, object]] | None,
+    fail_on_malformed: bool = False,
 ) -> LogJsonlSummary | None:
     output_filenames = log_output_filenames(instrument_serial)
     destinations = [instrument_output_dir / filename for filename in output_filenames.values()]
@@ -717,6 +720,7 @@ def _execute_log_family(
                 decoder_script=config.decoder_script,
                 preflight_mode=config.preflight_mode,
                 preflight_status_dir=instrument_output_dir,
+                environment_fingerprint=config.environment_fingerprint,
             )
             workdir = temp_dir / "decoded"
             workdir.mkdir(parents=True, exist_ok=True)
@@ -746,6 +750,7 @@ def _execute_log_family(
             run_id=run_id,
             malformed_log_lines=malformed_log_lines,
             skipped_log_files=skipped_log_files,
+            fail_on_malformed=fail_on_malformed,
         )
         if action == "append":
             _append_rendered_outputs(
@@ -773,6 +778,7 @@ def _execute_mer_family(
     run_id: str | None,
     malformed_mer_blocks: list[dict[str, object]] | None,
     skipped_mer_files: list[dict[str, object]] | None,
+    fail_on_malformed: bool = False,
 ) -> None:
     output_filenames = mer_output_filenames(instrument_serial)
     destinations = [instrument_output_dir / filename for filename in output_filenames.values()]
@@ -796,6 +802,7 @@ def _execute_mer_family(
             run_id=run_id,
             malformed_mer_blocks=malformed_mer_blocks,
             skipped_mer_files=skipped_mer_files,
+            fail_on_malformed=fail_on_malformed,
         )
         if action == "append":
             _append_rendered_outputs(
@@ -1283,6 +1290,12 @@ def _decoder_state_invalidated(
 ) -> bool:
     if previous_state is None:
         return False
+    if _bin_dependent(previous_state, current_state):
+        decoder_state = current_state.get("decoder_state")
+        if not isinstance(decoder_state, dict) or not decoder_state.get(
+            "decoder_environment_fingerprint"
+        ):
+            return True
     return previous_state.get("decoder_state") != current_state.get("decoder_state")
 
 

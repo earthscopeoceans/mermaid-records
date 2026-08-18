@@ -161,7 +161,7 @@ file is resumed by appending a second section.
 SOFTWARE, GPSINFO, and parameter values, including a reordered layout. Assert
 the agreed preservation or explicit conflict/error policy.
 
-### [ ] P2 — Non-finite MER numeric values produce invalid JSON
+### [x] P2 — Non-finite MER numeric values produce invalid JSON
 
 **Location:** `src/mermaid_records/normalize_mer.py`, `_attr_float` and
 `_write_jsonl_line`; generic `json.dumps` is also used in LOG and manifest
@@ -181,7 +181,7 @@ calculations without validation.
 numeric text, and negative `LENGTH` / `BYTES_PER_SAMPLE`. Assert valid JSON and
 an explicit raw-value/error policy.
 
-### [ ] P2 — Recoverable malformed source content disappears in stateless runs
+### [x] P2 — Recoverable malformed source content disappears in stateless runs
 
 **Location:** `src/mermaid_records/normalize_log.py`,
 `src/mermaid_records/parse_mer.py`, and `docs/limitations.md`.
@@ -200,7 +200,7 @@ with replacement, while MER metadata/tag text is decoded with ASCII `ignore`.
 including invalid UTF-8. Assert either a durable diagnostic output tied to the
 raw source hash or a fail-closed result.
 
-### [ ] P2 — The corpus snapshot includes unrelated JSONL files
+### [x] P2 — The corpus snapshot includes unrelated JSONL files
 
 **Location:** `src/mermaid_records/manifest.py`, `_normalized_file_inventory`.
 
@@ -216,7 +216,7 @@ The manifest then describes more than package-produced normalized records.
 JSONL, rewrite the manifest, and assert the chosen policy. A package-owned
 filename allow-list is the most direct definition of the intended corpus.
 
-### [ ] P2 — Decoder state does not fully capture decoder behavior
+### [x] P2 — Decoder state does not fully capture decoder behavior
 
 **Location:** `src/mermaid_records/manifest.py`, `_decoder_state`.
 
@@ -234,7 +234,7 @@ faithfully identifies the old bytes but cannot establish decoder equivalence.
 input while leaving the script and selected database files unchanged; assert
 re-decode or an explicit reproducibility limitation.
 
-### [ ] P2 — Row-level source provenance is ambiguous for duplicate basenames
+### [x] P2 — Row-level source provenance is ambiguous for duplicate basenames
 
 **Location:** `src/mermaid_records/normalize_log.py`,
 `src/mermaid_records/normalize_mer.py`, and `src/mermaid_records/manifest.py`.
@@ -252,7 +252,7 @@ unambiguously link a row to one particular raw file/checksum.
 distinct allowed source directories for one instrument; assert an explicit
 collision policy and record-to-source linkage.
 
-### [ ] P2 — DET and REQ are preserved but not structurally distinguished
+### [x] P2 — DET and REQ are preserved but not structurally distinguished
 
 **Location:** `src/mermaid_records/normalize_mer.py`, `_build_event_record`.
 

@@ -28,6 +28,7 @@ class Bin2LogConfig:
     decoder_script: Path
     preflight_mode: BinDecodePreflightMode = "strict"
     preflight_status_dir: Path | None = None
+    environment_fingerprint: str | None = None
 
     def __post_init__(self) -> None:
         """Validate the configured preflight mode."""
@@ -36,6 +37,8 @@ class Bin2LogConfig:
             raise ValueError(
                 "preflight_mode must be one of: 'strict', 'cached'"
             )
+        if self.environment_fingerprint is not None and not self.environment_fingerprint.strip():
+            raise ValueError("environment_fingerprint must be non-empty when provided")
 
 
 class Bin2LogError(RuntimeError):
@@ -367,7 +370,7 @@ def _write_preflight_status(
         "written_at": format_utc_datetime(datetime.now(timezone.utc)),
     }
     status_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n",
         encoding="utf-8",
     )
 

@@ -8,6 +8,7 @@ from collections import Counter
 from dataclasses import dataclass
 import base64
 import json
+import math
 from pathlib import Path
 import re
 from typing import Iterable
@@ -20,6 +21,7 @@ from .format_record_filenames import (
 )
 from .parse_mer import parse_mer_file, parse_mer_file_recoverable
 from .parse_instrument_name import maybe_parse_instrument_name
+from .source_provenance import source_provenance_fields
 
 BASE_OUTPUT_FILENAMES = {
     "environment": "mer_environment_records.jsonl",
@@ -141,7 +143,7 @@ def _common_mer_record_fields(instrument_id: str, path: Path) -> dict[str, objec
 
     return {
         "instrument_id": instrument_id,
-        "source_file": path.name,
+        **source_provenance_fields(path),
         "source_container": "mer",
     }
 
@@ -153,6 +155,7 @@ def write_mer_jsonl_families(
     instrument_id: str | None = None,
     instrument_serial: str | None = None,
     run_id: str | None = None,
+    fail_on_malformed: bool = False,
     malformed_mer_blocks: list[dict[str, object]] | None = None,
     skipped_mer_files: list[dict[str, object]] | None = None,
 ) -> MerJsonlSummary:
@@ -204,6 +207,11 @@ def write_mer_jsonl_families(
                     raw_block: str,
                     error: str,
                 ) -> None:
+                    if fail_on_malformed:
+                        location = "file metadata" if block_index is None else f"block {block_index}"
+                        raise ValueError(
+                            f"Malformed MER {location} in {path}: {error}"
+                        )
                     if malformed_mer_blocks is None or run_id is None:
                         return
                     malformed_mer_blocks.append(
@@ -577,7 +585,10 @@ def _attr_float(attrs: dict[str, str], *keys: str) -> float | None:
     for key in keys:
         value = attrs.get(key)
         if value is not None:
-            return float(value)
+            parsed = float(value)
+            if not math.isfinite(parsed):
+                raise ValueError(f"Non-finite numeric value for {key}: {value!r}")
+            return parsed
     return None
 
 
@@ -620,7 +631,7 @@ def _fallback_instrument_serial(path: Path) -> str:
 
 
 def _write_jsonl_line(handle, record: dict[str, object]) -> None:
-    handle.write(json.dumps(record))
+    handle.write(json.dumps(record, allow_nan=False))
     handle.write("\n")
 
 

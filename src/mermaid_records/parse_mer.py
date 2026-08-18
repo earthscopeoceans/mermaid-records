@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import math
 from pathlib import Path
 import re
 from typing import Callable, Iterator
@@ -583,7 +584,10 @@ def _parse_float(value: str | None) -> float | None:
 
     if value is None:
         return None
-    return float(value)
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise ValueError(f"Non-finite numeric value: {value!r}")
+    return parsed
 
 
 def _parse_bool(value: str | None) -> bool | None:

@@ -137,6 +137,8 @@ def test_write_log_jsonl_families_preserves_unclassified_records(
         "instrument_serial",
         "mermaid_records_version",
         "source_file",
+        "source_id",
+        "source_sha256",
         "source_container",
         "session_index",
         "session_kind",
@@ -156,6 +158,9 @@ def test_write_log_jsonl_families_preserves_unclassified_records(
     assert iridium_records[0]["start_log_epoch_time"] == "1700000000"
     assert iridium_records[0]["end_log_epoch_time"] == "1700000001"
     assert iridium_records[0]["source_file"] == log_path.name
+    assert iridium_records[0]["source_id"] == (
+        f"sha256:{iridium_records[0]['source_sha256']}"
+    )
     assert iridium_records[0]["instrument_serial"] == "0100"
     assert iridium_records[0]["source_line_numbers"] == [1, 2]
     assert (output_dir / "log_iridium_records.0100.jsonl").exists()
@@ -166,6 +171,8 @@ def test_write_log_jsonl_families_preserves_unclassified_records(
         "instrument_serial",
         "mermaid_records_version",
         "source_file",
+        "source_id",
+        "source_sha256",
         "source_container",
         "record_time",
         "log_epoch_time",
@@ -228,6 +235,7 @@ def test_write_log_jsonl_families_uses_authoritative_bin_for_direct_and_grouped_
         encoding="utf-8",
     )
     authoritative_bin_path = tmp_path / "0100_sample.BIN"
+    authoritative_bin_path.write_bytes(b"authoritative-bin")
     output_dir = tmp_path / "jsonl"
 
     write_log_jsonl_families(
@@ -247,6 +255,23 @@ def test_write_log_jsonl_families_uses_authoritative_bin_for_direct_and_grouped_
     assert {record["source_file"] for record in records} == {
         authoritative_bin_path.name
     }
+
+
+def test_log_rows_distinguish_same_basename_sources_by_content_hash(tmp_path: Path) -> None:
+    first = tmp_path / "first" / "0100_same.LOG"
+    second = tmp_path / "second" / "0100_same.LOG"
+    first.parent.mkdir()
+    second.parent.mkdir()
+    first.write_text("1700000000:[MAIN  ,0007]first\n", encoding="utf-8")
+    second.write_text("1700000001:[MAIN  ,0007]second\n", encoding="utf-8")
+
+    output_dir = tmp_path / "jsonl"
+    write_log_jsonl_families([first, second], output_dir)
+    rows = _read_jsonl(output_dir / "log_unclassified_records.jsonl")
+
+    assert {row["source_file"] for row in rows} == {"0100_same.LOG"}
+    assert len({row["source_id"] for row in rows}) == 2
+    assert len({row["source_sha256"] for row in rows}) == 2
 
 
 def test_write_log_jsonl_families_classifies_extended_pressure_temperature_patterns(
@@ -443,26 +468,27 @@ def test_write_log_jsonl_families_routes_pressure_rows_out_of_unclassified(
     assert pressure_by_message["Pext -45mbar (rng 30mbar)"][
         "external_pressure_range_mbar"
     ] == 30
-    assert battery_records == [
-        {
-            "instrument_id": "P0026",
-            "instrument_serial": "452.020-P-0026",
-            "mermaid_records_version": __version__,
-            "source_file": "0026_5D48EAB8.LOG",
-            "source_container": "log",
-            "record_time": "2019-08-07T02:57:30.000000Z",
-            "log_epoch_time": "1565146650",
-            "subsystem": "MAIN",
-            "code": "498",
-            "message": "Vbat 14681mV (min 13967mV)",
-            "source_line_number": 1,
-            "battery_record_kind": "vbat_summary",
-            "voltage_mv": 14681,
-            "current_ua": None,
-            "minimum_voltage_mv": 13967,
-            "raw_line": "1565146650:[MAIN  ,498]Vbat 14681mV (min 13967mV)",
-        }
-    ]
+    assert len(battery_records) == 1
+    assert {
+        key: battery_records[0][key]
+        for key in (
+            "instrument_id", "instrument_serial", "mermaid_records_version",
+            "source_file", "source_container", "record_time", "log_epoch_time",
+            "subsystem", "code", "message", "source_line_number",
+            "battery_record_kind", "voltage_mv", "current_ua", "minimum_voltage_mv",
+            "raw_line",
+        )
+    } == {
+        "instrument_id": "P0026", "instrument_serial": "452.020-P-0026",
+        "mermaid_records_version": __version__, "source_file": "0026_5D48EAB8.LOG",
+        "source_container": "log", "record_time": "2019-08-07T02:57:30.000000Z",
+        "log_epoch_time": "1565146650", "subsystem": "MAIN", "code": "498",
+        "message": "Vbat 14681mV (min 13967mV)", "source_line_number": 1,
+        "battery_record_kind": "vbat_summary", "voltage_mv": 14681,
+        "current_ua": None, "minimum_voltage_mv": 13967,
+        "raw_line": "1565146650:[MAIN  ,498]Vbat 14681mV (min 13967mV)",
+    }
+    assert battery_records[0]["source_id"] == f"sha256:{battery_records[0]['source_sha256']}"
     assert iridium_records[0]["source_file"] == "0026_5D48EAB8.LOG"
     assert iridium_records[0]["session_kind"] == "event_sequence"
     assert iridium_records[0]["iridium_events"][0]["message"] == "7 cmd(s) received"
@@ -857,7 +883,11 @@ def test_write_log_jsonl_families_groups_parameter_block_into_one_episode(
     ]
     assert malformed_log_lines == []
 
-    assert parameter_records[0] == {
+    assert {
+        key: value
+        for key, value in parameter_records[0].items()
+        if key not in {"source_id", "source_sha256"}
+    } == {
         "instrument_id": "0100",
         "instrument_serial": "0100",
         "mermaid_records_version": __version__,
@@ -877,6 +907,7 @@ def test_write_log_jsonl_families_groups_parameter_block_into_one_episode(
             "1700000001:    stage[1] 150000mbar (+/-5000mbar) 648000s (<708000s)",
         ],
     }
+    assert parameter_records[0]["source_id"] == f"sha256:{parameter_records[0]['source_sha256']}"
     _assert_log_source_line_assignments_exact_once(output_dir)
 
 

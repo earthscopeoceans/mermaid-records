@@ -9,6 +9,10 @@ All notable changes from this point forward should be recorded here.
 - Changed `normalize --force-rewrite` to `normalize -f, --force` for targeted family rewrites.
 - Added top-level `mermaid_records_version` package-version provenance to
   every normalized LOG and MER JSONL record.
+- Added content-addressed `source_id` and `source_sha256` provenance to every
+  normalized LOG and MER JSONL record.
+- Restricted normalized-corpus snapshots to canonical JSONL record-family
+  files; unrelated user JSONL is not snapshot data.
 
 ### Added
 
@@ -18,6 +22,9 @@ All notable changes from this point forward should be recorded here.
 - Added top-level `-v` as the short form of `--version`.
 - Added a root `normalization_manifest.json` with per-file SHA-256 checksums
   and a deterministic content-addressed normalized-corpus snapshot identifier.
+- Added `--decoder-environment-fingerprint` (or
+  `MERMAID_RECORDS_DECODER_FINGERPRINT`) for explicit external-decoder
+  provenance; BIN-dependent stateful runs conservatively rewrite when absent.
 - Added `normalize --instrument-serial <full-serial>` to scope stateful
   `--input-root` normalization, decoder work, manifests, force cleanup, and
   dry-run planning to one instrument.
@@ -26,6 +33,7 @@ All notable changes from this point forward should be recorded here.
 
 ### Release preparation
 
+- Advanced the package version to `2.1.0-rc4`.
 - Advanced the package version to `2.1.0-rc3`.
 - Advanced the package version to `2.1.0-rc1`.
 
@@ -45,6 +53,11 @@ All notable changes from this point forward should be recorded here.
   native `.LOG` inputs retain their basename and BIN-derived records name the
   originating `.BIN` instead of a temporary decoded LOG.
 - Preserve signed negative LOG epoch timestamps as source timestamps, including in grouped Iridium session timing.
+- Reject non-finite MER numeric text from normalized JSON and retain it in
+  stateful malformed-block quarantine diagnostics; stateless runs fail closed
+  on malformed source content.
+- Document that raw MER `TRIG` is preserved as structural evidence without
+  inferring a DET/REQ event classification.
 
 ## 2.0.0
 

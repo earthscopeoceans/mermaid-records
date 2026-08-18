@@ -400,6 +400,59 @@ def test_decoder_state_invalidates_only_bin_dependent_instrument(tmp_path: Path,
     assert diff_rows[0]["source_file"] == "0100_first.BIN"
 
 
+def test_missing_decoder_fingerprint_conservatively_rewrites_bin_outputs(
+    tmp_path: Path,
+) -> None:
+    input_root = tmp_path / "inputs"
+    input_root.mkdir()
+    (input_root / "0100_first.BIN").write_bytes(b"raw-bin")
+    decoder = _write_decoder(tmp_path / "decoder.py", "decoded")
+    config = Bin2LogConfig(
+        python_executable=Path(sys.executable),
+        decoder_script=decoder,
+    )
+    output_root = tmp_path / "output"
+
+    run_normalization_pipeline(input_root, output_dir=output_root, config=config)
+    summary = run_normalization_pipeline(input_root, output_dir=output_root, config=config)
+
+    assert summary.processed_instruments[0].decoder_state_invalidated is True
+    assert summary.processed_instruments[0].log_action == "rewrite"
+
+
+def test_stateful_nonfinite_mer_value_is_quarantined_with_raw_text(tmp_path: Path) -> None:
+    input_root = tmp_path / "inputs"
+    input_root.mkdir()
+    (input_root / "0100_bad.MER").write_text(
+        "<ENVIRONMENT>\n<TRUE_SAMPLE_FREQ FS_Hz=NaN />\n</ENVIRONMENT>\n"
+        "<PARAMETERS>\n</PARAMETERS>\n",
+        encoding="ascii",
+    )
+    output_root = tmp_path / "output"
+
+    run_normalization_pipeline(input_root, output_dir=output_root)
+
+    instrument_dir = output_root / "0100"
+    latest = _read_json(instrument_dir / "manifests" / "latest.json")
+    quarantined = _jsonl_lines(
+        instrument_dir / "manifests" / "runs" / latest["run_id"] / "malformed_mer_blocks.jsonl"
+    )
+    assert quarantined[0]["raw_block"] == "<TRUE_SAMPLE_FREQ FS_Hz=NaN />"
+    assert "Non-finite numeric value" in quarantined[0]["error"]
+
+
+def test_stateless_nonfinite_mer_value_fails_closed(tmp_path: Path) -> None:
+    mer_path = tmp_path / "0100_bad.MER"
+    mer_path.write_text(
+        "<ENVIRONMENT>\n<TRUE_SAMPLE_FREQ FS_Hz=Infinity />\n</ENVIRONMENT>\n"
+        "<PARAMETERS>\n</PARAMETERS>\n",
+        encoding="ascii",
+    )
+
+    with pytest.raises(ValueError, match="Non-finite numeric value"):
+        run_normalization_pipeline(output_dir=tmp_path / "output", input_files=[mer_path])
+
+
 def test_same_stem_bin_shadows_native_log_for_state_and_normalization(
     tmp_path: Path,
 ) -> None:
@@ -415,6 +468,7 @@ def test_same_stem_bin_shadows_native_log_for_state_and_normalization(
     config = Bin2LogConfig(
         python_executable=Path(sys.executable),
         decoder_script=decoder,
+        environment_fingerprint="test-decoder-v1",
     )
     output_root = tmp_path / "output"
 
@@ -1012,7 +1066,7 @@ def test_stateful_skips_hopelessly_broken_mer_file(tmp_path: Path) -> None:
     assert _jsonl_lines(run_dir / "malformed_mer_blocks.jsonl") == []
 
 
-def test_stateless_malformed_log_recovery_writes_no_manifests(tmp_path: Path) -> None:
+def test_stateless_malformed_log_fails_closed_without_manifests(tmp_path: Path) -> None:
     log_path = tmp_path / "0100_malformed.LOG"
     log_path.write_text(
         "\n".join(
@@ -1027,13 +1081,11 @@ def test_stateless_malformed_log_recovery_writes_no_manifests(tmp_path: Path) ->
     )
 
     output_root = tmp_path / "output"
-    run_normalization_pipeline(output_dir=output_root, input_files=[log_path])
+    with pytest.raises(ValueError, match="Malformed LOG line 2"):
+        run_normalization_pipeline(output_dir=output_root, input_files=[log_path])
 
     assert not (output_root / "0100" / "manifests").exists()
-    unclassified_rows = _jsonl_lines(output_root / "0100" / "log_unclassified_records.jsonl")
-    assert [row["message"] for row in unclassified_rows] == ["first", "second"]
-    assert _record_path(output_root / "0100", "mer_event_records.jsonl").exists()
-    assert _record_path(output_root / "0100", "mer_event_records.jsonl").read_text(encoding="utf-8") == ""
+    assert _record_path(output_root / "0100", "log_unclassified_records.jsonl").read_text(encoding="utf-8") == ""
 
 
 def test_stateful_run_materializes_canonical_output_file_set(tmp_path: Path) -> None:

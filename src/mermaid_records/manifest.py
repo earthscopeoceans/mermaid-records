@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 
 from . import __version__
 from .format_datetime import format_utc_datetime
-from .format_record_filenames import validate_instrument_serial
+from .format_record_filenames import is_canonical_record_filename, validate_instrument_serial
 
 if TYPE_CHECKING:
     from .bin2log import Bin2LogConfig
@@ -271,7 +271,7 @@ def record_pruned_sources(
                 "source_kind": source["source_kind"],
                 "removed_at": removed_at,
             }
-            handle.write(json.dumps(record))
+            handle.write(json.dumps(record, allow_nan=False))
             handle.write("\n")
 
 
@@ -290,6 +290,7 @@ def _decoder_state(config: Bin2LogConfig | None) -> dict[str, object] | None:
         "database_bundle_hash": _bundle_hash(database_files),
         "database_files": [path.as_posix() for path in database_files],
         "decoder_git_commit": _git_commit(config.decoder_script.parent),
+        "decoder_environment_fingerprint": config.environment_fingerprint,
     }
 
 
@@ -371,6 +372,8 @@ def _normalized_file_inventory(output_root: Path) -> list[dict[str, object]]:
         relative_path = path.relative_to(output_root)
         if {"manifests", "state"} & set(relative_path.parts[:-1]):
             continue
+        if not is_canonical_record_filename(path.name):
+            continue
         files.append(
             {
                 "path": relative_path.as_posix(),
@@ -430,7 +433,7 @@ def _has_materialized_outputs(instrument_output_dir: Path) -> bool:
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
 
 
 def _write_json_atomic(path: Path, payload: dict[str, object]) -> None:
@@ -438,7 +441,7 @@ def _write_json_atomic(path: Path, payload: dict[str, object]) -> None:
     temporary_path = path.with_name(f".{path.name}.{secrets.token_hex(6)}.tmp")
     try:
         temporary_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n",
             encoding="utf-8",
         )
         os.replace(temporary_path, path)
@@ -450,5 +453,5 @@ def _write_json_atomic(path: Path, payload: dict[str, object]) -> None:
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for row in rows:
-            handle.write(json.dumps(row))
+            handle.write(json.dumps(row, allow_nan=False))
             handle.write("\n")

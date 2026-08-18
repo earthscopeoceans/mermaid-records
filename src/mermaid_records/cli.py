@@ -86,6 +86,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to external preprocess.py decoder script.",
     )
     normalize.add_argument(
+        "--decoder-environment-fingerprint",
+        type=str,
+        default=None,
+        help="Explicit immutable identifier for the external decoder environment; defaults to MERMAID_RECORDS_DECODER_FINGERPRINT when set.",
+    )
+    normalize.add_argument(
         "--preflight-mode",
         choices=("strict", "cached"),
         default="strict",
@@ -180,6 +186,9 @@ def _handle_normalize(args: argparse.Namespace) -> int:
             python_executable=decoder_python,
             decoder_script=decoder_script,
             preflight_mode=args.preflight_mode,
+            environment_fingerprint=_resolve_decoder_environment_fingerprint(
+                args.decoder_environment_fingerprint
+            ),
         )
 
     summary = run_normalization_pipeline(
@@ -196,7 +205,7 @@ def _handle_normalize(args: argparse.Namespace) -> int:
     elapsed_s = time.perf_counter() - started
     payload = summary.to_dict()
     if args.dry_run and args.json:
-        print(json.dumps(payload, sort_keys=True))
+        print(json.dumps(payload, sort_keys=True, allow_nan=False))
     elif args.dry_run:
         print(
             _format_human_dry_run(
@@ -260,6 +269,23 @@ def _resolve_decoder_script(decoder_script: Path | None) -> Path | None:
         return decoder_script
     configured = os.environ.get("MERMAID_RECORDS_DECODER_SCRIPT")
     return Path(configured) if configured else None
+
+
+def _resolve_decoder_environment_fingerprint(value: str | None) -> str | None:
+    """Return an explicit decoder-environment fingerprint, if configured."""
+
+    configured = value if value is not None else os.environ.get(
+        "MERMAID_RECORDS_DECODER_FINGERPRINT"
+    )
+    if configured is None:
+        return None
+    fingerprint = configured.strip()
+    if not fingerprint:
+        raise SystemExit(
+            "--decoder-environment-fingerprint and MERMAID_RECORDS_DECODER_FINGERPRINT "
+            "must not be empty."
+        )
+    return fingerprint
 
 
 def _decoder_required(

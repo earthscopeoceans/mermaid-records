@@ -21,6 +21,7 @@ from .format_record_filenames import (
 )
 from .models import OperationalLogEntry
 from .parse_instrument_name import maybe_parse_instrument_name
+from .source_provenance import source_provenance_fields
 
 type _SourceLineKey = tuple[int, int]
 
@@ -280,7 +281,7 @@ def _common_log_record_fields(
 
     fields: dict[str, object] = {
         "instrument_id": instrument_id,
-        "source_file": entry.source_file.name,
+        **source_provenance_fields(entry.source_file),
         "source_container": "log",
         "record_time": format_utc_datetime(entry.time),
         "log_epoch_time": _log_epoch_time(entry),
@@ -301,6 +302,7 @@ def write_log_jsonl_families(
     instrument_serial: str | None = None,
     authoritative_source_files: Mapping[Path, Path] | None = None,
     run_id: str | None = None,
+    fail_on_malformed: bool = False,
     malformed_log_lines: list[dict[str, object]] | None = None,
     skipped_log_files: list[dict[str, object]] | None = None,
 ) -> LogJsonlSummary:
@@ -375,6 +377,10 @@ def write_log_jsonl_families(
                 raw_line: str,
                 error: str,
             ) -> None:
+                if fail_on_malformed:
+                    raise ValueError(
+                        f"Malformed LOG line {line_number} in {authoritative_source}: {error}"
+                    )
                 if malformed_log_lines is None or run_id is None:
                     return
                 malformed_log_lines.append(
@@ -931,7 +937,7 @@ def _build_grouped_episode_record(
     last_line = timestamped_lines[-1]
     record: dict[str, object] = {
         "instrument_id": instrument_id,
-        "source_file": source_file.name,
+        **source_provenance_fields(source_file),
         "episode_index": episode.episode_index,
         "line_start_index": first_line.line_number,
         "line_end_index": last_line.line_number,
@@ -967,7 +973,7 @@ def _build_iridium_session_record(
     events = _iridium_events_for_episode(episode)
     return {
         "instrument_id": instrument_id,
-        "source_file": source_file.name,
+        **source_provenance_fields(source_file),
         "source_container": "log",
         "session_index": episode.episode_index,
         "session_kind": episode.group_kind or "event_sequence",
@@ -1667,7 +1673,7 @@ def _log_epoch_time(entry: OperationalLogEntry) -> str:
 
 
 def _write_jsonl_line(handle, record: dict[str, object]) -> None:
-    handle.write(json.dumps(record))
+    handle.write(json.dumps(record, allow_nan=False))
     handle.write("\n")
 
 

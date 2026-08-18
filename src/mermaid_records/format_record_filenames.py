@@ -10,6 +10,25 @@ from typing import Mapping
 from . import __version__
 
 
+CANONICAL_BASE_FILENAMES = frozenset(
+    {
+        "log_acquisition_records.jsonl",
+        "log_ascent_request_records.jsonl",
+        "log_gps_records.jsonl",
+        "log_pressure_temperature_records.jsonl",
+        "log_battery_records.jsonl",
+        "log_parameter_records.jsonl",
+        "log_testmode_records.jsonl",
+        "log_ctd_records.jsonl",
+        "log_iridium_records.jsonl",
+        "log_unclassified_records.jsonl",
+        "mer_environment_records.jsonl",
+        "mer_parameter_records.jsonl",
+        "mer_event_records.jsonl",
+    }
+)
+
+
 def validate_instrument_serial(instrument_serial: str) -> str:
     """Return a normalized non-empty serial suitable for JSONL filenames."""
 
@@ -46,6 +65,18 @@ def record_family_name(path: Path) -> str:
     """Return the family name portion of a normalized JSONL filename."""
 
     return path.name.removesuffix(".jsonl").split(".", maxsplit=1)[0]
+
+
+def is_canonical_record_filename(filename: str) -> bool:
+    """Return whether ``filename`` is one serial-suffixed record-family output."""
+
+    for base_filename in CANONICAL_BASE_FILENAMES:
+        stem = base_filename.removesuffix(".jsonl")
+        if filename.startswith(f"{stem}.") and filename.endswith(".jsonl"):
+            serial = filename[len(stem) + 1 : -len(".jsonl")]
+            if serial:
+                return True
+    return False
 
 
 def with_record_metadata(

@@ -192,6 +192,17 @@ def test_state_and_run_bookkeeping_are_not_corpus_data(tmp_path: Path) -> None:
     ]
 
 
+def test_unknown_jsonl_is_not_part_of_the_normalized_corpus_snapshot(tmp_path: Path) -> None:
+    output_root = tmp_path / "output"
+    canonical = output_root / "0100" / "log_unclassified_records.0100.jsonl"
+    _write_file(canonical, b"data\n")
+    initial = _snapshot_id(output_root)
+
+    _write_file(output_root / "0100" / "research_notes.jsonl", b"user data\n")
+
+    assert _snapshot_id(output_root) == initial
+
+
 def test_manifest_is_atomically_replaced(tmp_path: Path, monkeypatch) -> None:
     output_root = tmp_path / "output"
     _write_file(output_root / "0100" / "log_unclassified_records.0100.jsonl", b"data\n")
