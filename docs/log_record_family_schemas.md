@@ -21,8 +21,8 @@ distinguishes same-basename sources without exposing a local path.
 
 ## Shared LOG Parsing Contract
 
-Ordinary LOG family classification starts only after a raw line parses as one of
-these tagged LOG forms:
+Single-line tagged-family classification starts only after a raw line parses as
+one of these tagged LOG forms:
 
 ```text
 ^(?P<time>.+?):\[(?P<tag>[^\]]+)\](?P<message>.*)$
@@ -74,10 +74,12 @@ These fields appear on every single-line family:
 
 ## Common Grouped-Episode Fields
 
-These fields appear on grouped episode families. Most grouped episode records
-do not currently include `source_container`, `subsystem`, `code`, `message`, or
-`raw_line`; `log_iridium_records.jsonl` includes `source_container` and nested
-per-line event objects.
+These fields appear on the parameter, CTD, and testmode grouped-episode
+families. Those records do not currently include `source_container`,
+`subsystem`, `code`, `message`, or `raw_line`. The Iridium family uses the
+adapted session fields documented in its section, including `session_index`
+rather than `episode_index`, `source_container`, and nested per-line event
+objects.
 
 | Field | Type | Nullable? | Meaning | Units | Source / derivation |
 | --- | --- | --- | --- | --- | --- |
@@ -791,8 +793,8 @@ Non-hits:
 not even timestamped
 ```
 
-The first three non-hits are consumed by specific/grouped families. The last
-two are malformed lines, not unclassified records.
+All non-hits before the final two are consumed by specific or grouped families.
+The final two are malformed lines, not unclassified records.
 
 Overlap / exclusivity: unclassified is mutually exclusive with every specific
 LOG family. Specific-family lines do not also appear here. This family is the

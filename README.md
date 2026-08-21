@@ -68,6 +68,11 @@ Quick usage flags:
 
 See [docs/cli.md](docs/cli.md) for the full CLI reference.
 
+Developer-facing JSONL family references:
+
+- [LOG record family schemas](docs/log_record_family_schemas.md)
+- [MER record family schemas](docs/mer_record_family_schemas.md)
+
 ## Execution modes
 
 `mermaid-records normalize` has two execution modes:
