@@ -14,6 +14,12 @@ tell the user before proceeding. Do not silently continue using only this file.
 
 If instructions conflict, this file takes precedence.
 
+## Development Environment
+
+Before running Python tooling, tests, or package commands in this repository,
+source `.venv/bin/activate` in the active shell. Do not rely on a system Python
+or globally installed tools.
+
 ## Repository Scope
 
 `mermaid-records` normalizes raw MERMAID `BIN`, `LOG`, and `MER` files into
